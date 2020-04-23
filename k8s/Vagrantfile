@@ -1,0 +1,41 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+
+  if ENV["KUBE_VERSION"] = ""
+    ENV["KUBE_VERSION"]="1.16.2-00"
+  end
+  $MASTER_IP="192.168.138.100" 
+  $KUBEADM_ARGS="--ignore-preflight-errors=SystemVerification --node-name=$1"
+  $KUBEADM_MASTER_ARGS="--apiserver-advertise-address $MASTER_IP" 
+  $APT_ARGS="--allow-downgrades -y"
+
+  config.vm.box = "ubuntu/bionic64"
+
+  config.vm.synced_folder "../k8s", "/k8s"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "2048"
+  end
+
+
+  config.vm.define "master", primary: "true" do |master|
+    master.vm.network "forwarded_port", guest: 6443, host: 6443
+    master.vm.network "private_network", ip: $MASTER_IP
+    master.vm.provision "shell", env: {"APT_ARGS": $APT_ARGS, "MASTER_IP":$MASTER_IP, "KUBEADM_MASTER_ARGS": $KUBEADM_MASTER_ARGS, "KUBE_VERSION" => ENV["KUBE_VERSION"], "TOKEN" => ENV["TOKEN"], "KUBEADM_ARGS" => $KUBEADM_ARGS}, name: "master" do |s|
+      s.path="install.sh"
+      s.args="master"
+    end
+  end
+
+
+  (1..1).each do |i|
+    config.vm.define "node-#{i}" do |node|
+      node.vm.network "private_network", ip: "192.168.138.10#{i}"
+      node.vm.provision "shell", env: {"APT_ARGS": $APT_ARGS, "KUBE_VERSION" => ENV["KUBE_VERSION"], "KUBEADM_ARGS" => $KUBEADM_ARGS},name: "node" do |s|
+        s.path="install.sh"
+        s.args="node-#{i}"
+      end  
+    end
+  end
+end
